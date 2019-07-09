@@ -1,0 +1,149 @@
+---
+title: "Practical Machine Learning Project"
+author: "Biswajit Chowdhury"
+date: "24/06/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+library(tidyverse)
+library(caret)
+library(rpart)
+library(randomForest)
+library(xgboost)
+```
+
+
+# download training and test data
+
+```{r}
+traindata <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+
+
+testdata<- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+```
+
+# inspect the data
+
+```{r}
+
+dim(traindata)
+dim(testdata)
+```
+
+# Split the data into training and test set
+
+```{r}
+set.seed(123)
+training.samples <- traindata$classe %>% 
+  createDataPartition(p = 0.7, list = FALSE)
+train.data  <- traindata[training.samples, ]
+test.data <- traindata[-training.samples, ]
+
+dim(train.data)
+dim(test.data)
+
+
+```
+
+# tidy the dataset for further analysis
+
+```{r}
+# remove the variables that contains missing values. 
+train.data <- train.data[ , colSums(is.na(train.data)) == 0] # selecting only columns that do not have NAs
+test.data <- test.data[ , colSums(is.na(test.data)) == 0]
+
+train.data <- train.data[, -nearZeroVar(train.data)] # removing columns with near zero variance
+test.data  <- test.data [, -nearZeroVar(test.data )]
+
+train.data <- train.data[ , -c(1:5)] # removing variables for row number, username, and timestamp
+test.data  <- test.data [ , -c(1:5)]
+
+dim(train.data) 
+dim(test.data)
+```
+
+
+
+We randomly select three algorith to determine the best model 
+
+# KNN Algorithm
+
+```{r}
+model1 <- train(classe~., data=train.data, method="knn", trControl=trainControl("cv", number = 3), preProcess= c("center", "scale"), tuneLength = 20)
+
+#plot model accuracy vs different values of K
+plot(model1)
+
+# print the best tunning parameter K that maximize model accuracy
+model1$ bestTune
+
+# make prediction on the test data
+predicted.classes<- model1 %>% predict (test.data)
+head(predicted.classes)
+
+# compute model accuracy rate
+mean(predicted.classes==test.data$classe)
+
+```
+
+
+
+# Random Forest Model
+
+```{r}
+set.seed(123)
+model2<- train(classe~., data=train.data, method="rf", trControl=trainControl("cv", number=3), importance=TRUE)
+# Best tuning parameter
+model2$bestTune
+#final model
+model2$finalModel
+
+# importance of each variable
+importance(model2$finalModel)
+
+# Make prediction on test data
+predicted.classes<- model2 %>% predict (test.data)
+head(predicted.classes)
+
+# compute model accuracy rate
+
+mean(predicted.classes==test.data$classe)
+```
+
+
+# Boosting model
+
+
+```{r}
+model3<- train(classe~., data=train.data, method="xgbTree", trControl=trainControl("cv", number=3))
+# Best tuning parameter
+model3$bestTune
+
+
+# Make prediction on test data
+predicted.classes<- model3 %>% predict (test.data)
+head(predicted.classes)
+
+# compute model accuracy rate
+
+mean(predicted.classes==test.data$classe)
+```
+
+Based on three models, model2 (randomForest) has stronger accuracy rate than other two. So the final validation has been assayed using model2.
+
+# Applying the best model to the validation data
+```{r}
+results<- predict(model2, newdata=testdata)
+results
+```
+
+
